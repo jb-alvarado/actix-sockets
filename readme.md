@@ -20,25 +20,25 @@ Video version of this tutorial coming out soon! If you want to get notified when
 
 ## The setup
 
-first, run `cargo init ws-demo` or something similar. then, go to your `Cargo.toml` and make sure you depend on these packages: 
+first, run `cargo init ws-demo` or something similar. then, go to your `Cargo.toml` and make sure you depend on these packages:
 
 ```toml
 [dependencies]
-actix-web="3.2.0" # duh
-actix-web-actors="3" # actors specific to web
-actix = "0.10.0" # actors
-uuid = { version = "0.8", features = ["v4", "serde"] } # uuid's fit well in this context.
+actix = "0.13" # actors
+actix-web="4" # duh
+actix-web-actors="4" # actors specific to web
+uuid = { version = "1.2", features = ["v4", "serde"] } # uuid's fit well in this context.
 ```
 
 you might want to `cargo run` the hello world and go make a coffee; compiling all these crates will take a minute or two.
 
 ## Warm up to actix architecture
 
-In the actix architecture, there are two primary components: Actors and Messages. Think of each actor as it's own object in memory, with a mailbox. Actors can read their mailbox and respond to their mail accordingly, whether it be by sending mail to another actor, changing it's state, or maybe by doing nothing at all. That's it! That's all that actors are - simple little things that read and respond to mail. 
+In the actix architecture, there are two primary components: Actors and Messages. Think of each actor as it's own object in memory, with a mailbox. Actors can read their mailbox and respond to their mail accordingly, whether it be by sending mail to another actor, changing it's state, or maybe by doing nothing at all. That's it! That's all that actors are - simple little things that read and respond to mail.
 
-Actors are so ungodly fast because they work entirely independent of each other. One actor can be on it's own thread, or on a different machine entirely, and as long as the actor can read it's mail, it works perfectly. 
+Actors are so ungodly fast because they work entirely independent of each other. One actor can be on it's own thread, or on a different machine entirely, and as long as the actor can read it's mail, it works perfectly.
 
-It's important to note that the actor just exists in memory, with it's address passed around like `Addr<Actor>`. The Actor itself can mutate its properties (maybe you have a "messages_received" property, and you need to increment it on every message) but you can't do that anywhere else. Instead, with the `Addr<Actor>` element, you can do `.send(some_message)` to put a message in that Actor's mailbox. 
+It's important to note that the actor just exists in memory, with it's address passed around like `Addr<Actor>`. The Actor itself can mutate its properties (maybe you have a "messages_received" property, and you need to increment it on every message) but you can't do that anywhere else. Instead, with the `Addr<Actor>` element, you can do `.send(some_message)` to put a message in that Actor's mailbox.
 
 In Actix web, each socket connection is it's own Actor, and the "Lobby" (we'll get to that) is it's own actor also.
 
@@ -73,7 +73,7 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
 ### the struct
 
-Define a struct with the following signature: 
+Define a struct with the following signature:
 
 ```rust
 pub struct WsConn {
@@ -84,11 +84,11 @@ pub struct WsConn {
 }
 ```
 
-the fields are as follows: 
+the fields are as follows:
 - room: each Socket exists in a 'room', which in this implementation will just be a simple HashMap that maps Uuid -> List of Socket Ids. More on that later, but having the room stored in the signature of the socket itself will be useful later down the line for private messages.
 - addr: This is the Addr of the lobby that the socket exists in.  This will be used to send data to the lobby. so, sending a text message to the lobby might look like this: `self.addr.do_send('hi!')`. Without this property, it would be impossible for this actor to find the Lobby in memory.
 - hb: Although WebSockets do send messages when they close, sometimes WebSockets close without any warning. instead of having that socket exist forever, we send it a heartbeat every N seconds, and if we don't get a response back, we terminate the socket. This property is the time since we recieved the last heartbeat. In a lot of libraries, this is handled automatically.
-- id: this is the ID assigned by us to that socket. This is useful for private messaging, so we can `/whisper <id> hello!` to whisper to that client. 
+- id: this is the ID assigned by us to that socket. This is useful for private messaging, so we can `/whisper <id> hello!` to whisper to that client.
 
 ### 'new'
 We'll write a quick `new` trait so that we can spin up the socket a little bit easier:
@@ -106,11 +106,11 @@ impl WsConn {
 }
 ```
 
-this way, we don't have to deal with setting up the heartbeat or assigning an id. 
+this way, we don't have to deal with setting up the heartbeat or assigning an id.
 
 ### Making it into an actor
 
-Notice how the `WsConn` is just a plain old Rust struct. to convert it into an actor, we need to implement the Actor trait on it. 
+Notice how the `WsConn` is just a plain old Rust struct. to convert it into an actor, we need to implement the Actor trait on it.
 
 here's the code in full, and then we'll dissect it:
 
@@ -148,9 +148,9 @@ impl Actor for WsConn {
 
 first, you'll see we define a type called `Context` in the definition (`type Context = ws::WebsocketContext<Self>;`). That's mandated by the actor. That's the `context` in which this actor lives; here, we're saying that the context is the WebSocket context, and that it should be allowed to do WebSocket stuff, like start listening on a port. We'll be defining a plain old context in the `Lobby` section in the future.
 
-We also write the `started` and `stopping` methods - this will create and destroy the Actor respectively. 
+We also write the `started` and `stopping` methods - this will create and destroy the Actor respectively.
 
-In Started, we begin the heartbeat loop; It's just a function that triggers on an interval, so after we start the loop, we don't have to worry about it. (We'll, again, write that a little later :) ) 
+In Started, we begin the heartbeat loop; It's just a function that triggers on an interval, so after we start the loop, we don't have to worry about it. (We'll, again, write that a little later :) )
 
 We also take the address of the lobby and send it a message saying "Hey! I connected. This is the lobby I want to get into, and my id, as well as the address of my mailbox you can reach me at." We send that message **asynchronously**. If we did `do_send` instead of `send`, we'd be sending it _kind of_ synchronously. By kind of, I mean "chuck the message at the mailbox and drive away." `do_send` doesn't care if the message ever sent or got read. `send` needs to be awaited, which is the purpose of this block:
 
@@ -166,9 +166,9 @@ We also take the address of the lobby and send it a message saying "Hey! I conne
 
 If anything fails, we just stop the whole Actor with `ctx.stop`. This likely won't happen, but might if something is wrong with your `Lobby` actor. The client will see something along the lines of `ws handshake couldn't be completed.`
 
-Stopping is much easier. You can see the `do_send` in action here: we try to send a Disconnect message to the lobby, but if we can't, no big deal. Just stop this actor. 
+Stopping is much easier. You can see the `do_send` in action here: we try to send a Disconnect message to the lobby, but if we can't, no big deal. Just stop this actor.
 
-And that's it! Our `WsConn` is now an Actor. 
+And that's it! Our `WsConn` is now an Actor.
 
 ### heartbeat
 
@@ -234,7 +234,7 @@ It's a simple pattern match on all the possible WebSocket messages.
 - The pong is the response to the ping we sent. Reset our clock, they're alive.
 - If the message is binary, we'll send it to the WebSocket context which will figure out what to do with it. This realistically should never be triggered.
 - If it's a close message just close.
-- For this tutorial, we're not going to respond to continuation frames (these are, in short, WebSocket messages that couldn't fit into one message) 
+- For this tutorial, we're not going to respond to continuation frames (these are, in short, WebSocket messages that couldn't fit into one message)
 - On nop let's nop (no operation)
 - On a text message, (this one we'll be doing the most!) send it to the lobby. The lobby will deal with brokering it out to where it needs to go.
 - On an error, we'll panic. You'll probably want to implement what to do here reasonably.
@@ -254,7 +254,7 @@ impl Handler<WsMessage> for WsConn {
 Here, if the server puts a `WsMessage` (Which we need to define) mail into our mailbox, all we do is send it straight to the client. This is what 'reading the mail' from the mailbox looks like; `impl Handler<MailType> for ACTOR`. Note that we also need to define what the response to that mail may look like. If the mail is placed like `do_send`, the response type doesn't matter. If it's placed like `send()`, then the awaited result type will be what `Result` is. maybe you do `type Result = String`, or something similar. Regardless, whatever type `T` you put there, `handle` needs to return `T`.
 
 Also, the signature of the handler message includes:
-1. The message itself. You have complete control over how much or how little data this message passes. 
+1. The message itself. You have complete control over how much or how little data this message passes.
 2. Self context. This is your own context, which is a "mailbox" of self. You can read memeber variables from the ctx, or you can put messages into your own mailbox here.
 
 And that's it! That is the whole `WsClient`.
@@ -354,7 +354,7 @@ impl Default for Lobby {
 }
 ```
 
-and now let's write a helper that sends a message to a client. 
+and now let's write a helper that sends a message to a client.
 
 ```rust
 impl Lobby {
@@ -452,7 +452,7 @@ impl Handler<Connect> for Lobby {
 
 All that is being done here is adding a socket and sending them messages.
 
-Finally, we open the mailbox for clients to send messages to the lobby for the lobby to forward to clients. 
+Finally, we open the mailbox for clients to send messages to the lobby for the lobby to forward to clients.
 
 ```rust
 impl Handler<ClientActorMessage> for Lobby {
@@ -472,11 +472,11 @@ impl Handler<ClientActorMessage> for Lobby {
 
 This checks if the message starts with a \w. If it does, we know it's a whisper, and we send it to a specific client. If it's not, we send it to all users in the room. (this is **NOT** production ready! It will panic if there is an invalid UUID after the /w, and will just fail silently if it's just \w without anything after it.)
 
-And that's the lobby! 
+And that's the lobby!
 
 ## Final step! Setting up the Route / Running Server
 
-First, we have to open up a route that lets us connect to the server. create a file called "start_connection.rs" and put in this route: 
+First, we have to open up a route that lets us connect to the server. create a file called "start_connection.rs" and put in this route:
 
 ```rust
 use crate::ws::WsConn;

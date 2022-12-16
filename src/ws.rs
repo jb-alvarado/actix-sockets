@@ -1,12 +1,14 @@
+use std::time::{Duration, Instant};
+
+use actix::{
+    fut, Actor, ActorContext, ActorFutureExt, Addr, AsyncContext, ContextFutureSpawner, Handler,
+    Running, StreamHandler, WrapFuture,
+};
+use actix_web_actors::ws::{self, Message::Text};
+use uuid::Uuid;
+
 use crate::lobby::Lobby;
 use crate::messages::{ClientActorMessage, Connect, Disconnect, WsMessage};
-use actix::{fut, ActorContext, ActorFutureExt, ContextFutureSpawner, WrapFuture};
-use actix::{Actor, Addr, Running, StreamHandler};
-use actix::{AsyncContext, Handler};
-use actix_web_actors::ws;
-use actix_web_actors::ws::Message::Text;
-use std::time::{Duration, Instant};
-use uuid::Uuid;
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);

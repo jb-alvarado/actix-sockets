@@ -1,14 +1,16 @@
-use crate::messages::{ClientActorMessage, Connect, Disconnect, WsMessage};
-use actix::prelude::{Actor, Context, Handler, Recipient};
 use std::collections::{HashMap, HashSet};
+
+use actix::prelude::*;
 use uuid::Uuid;
+
+use crate::messages::{ClientActorMessage, Connect, Disconnect, WsMessage};
 
 type Socket = Recipient<WsMessage>;
 
 #[derive(Default)]
 pub struct Lobby {
-    sessions: HashMap<Uuid, Socket>,     //self id to self
-    rooms: HashMap<Uuid, HashSet<Uuid>>, //room id  to list of users id
+    sessions: HashMap<Uuid, Socket>,     // self id to self
+    rooms: HashMap<Uuid, HashSet<Uuid>>, // room id  to list of users id
 }
 
 impl Lobby {
@@ -43,7 +45,7 @@ impl Handler<Disconnect> for Lobby {
                 if lobby.len() > 1 {
                     lobby.remove(&msg.id);
                 } else {
-                    //only one in the lobby, remove it entirely
+                    // only one in the lobby, remove it entirely
                     self.rooms.remove(&msg.room_id);
                 }
             }
@@ -81,8 +83,12 @@ impl Handler<ClientActorMessage> for Lobby {
 
     fn handle(&mut self, msg: ClientActorMessage, _ctx: &mut Context<Self>) -> Self::Result {
         if msg.msg.starts_with("\\w") {
+            // sends private message to user UUID
             if let Some(id_to) = msg.msg.split(' ').collect::<Vec<&str>>().get(1) {
-                self.send_message(&msg.msg, &Uuid::parse_str(id_to).unwrap());
+                match Uuid::parse_str(id_to) {
+                    Ok(u) => self.send_message(&msg.msg, &u),
+                    Err(_) => self.send_message("Needs valid user UUID", &msg.id),
+                }
             }
         } else {
             self.rooms

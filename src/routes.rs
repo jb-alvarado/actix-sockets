@@ -1,12 +1,13 @@
-use crate::lobby::Lobby;
-use crate::ws::WsConn;
 use actix::Addr;
 use actix_web::{get, web::Data, web::Path, web::Payload, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use uuid::Uuid;
 
+use crate::lobby::Lobby;
+use crate::ws::WsConn;
+
 #[get("/{group_id}")]
-pub async fn start_connection(
+pub async fn ws_connection(
     req: HttpRequest,
     stream: Payload,
     group_id: Path<Uuid>,

@@ -1,4 +1,4 @@
-use actix::prelude::{Message, Recipient};
+use actix::prelude::*;
 use uuid::Uuid;
 
 #[derive(Message)]
