@@ -15,6 +15,5 @@ pub async fn ws_connection(
 ) -> Result<HttpResponse, Error> {
     let ws = WsConn::new(group_id.into_inner(), srv.get_ref().clone());
 
-    let resp = ws::start(ws, &req, stream)?;
-    Ok(resp)
+    ws::start(ws, &req, stream)
 }
